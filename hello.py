@@ -1,10 +1,13 @@
 from flask import Flask, render_template, url_for, flash, redirect
 from forms import RegistrationForm
+from login import LoginForm
 from flask_behind_proxy import FlaskBehindProxy
 from flask_sqlalchemy import SQLAlchemy
+from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)                    # this gets the name of the file so Flask knows it's name
 proxied = FlaskBehindProxy(app)  ## add this line
+bcrypt = Bcrypt(app)             # code to create bcrypt wrapper for flask app
 app.config['SECRET_KEY'] = '39e544a7b87e65b3d845915b1533104f'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 db = SQLAlchemy(app)
@@ -31,11 +34,39 @@ def register():
     form = RegistrationForm()
     if form.validate_on_submit(): # checks if entries are valid
         if form.validate_on_submit():
-            user = User(username=form.username.data, email=form.email.data, password=form.password.data)
+            pw_hash = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+            user = User(username=form.username.data, email=form.email.data, password=pw_hash)
             db.session.add(user)
             db.session.commit()
         flash(f'Account created for {form.username.data}!', 'success')
         return redirect(url_for('home')) # if so - send to home page
     return render_template('register.html', title='Register', form=form)
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    login = LoginForm()
+    if login.validate_on_submit(): # checks if entries are valid
+        if login.validate_on_submit():
+            login_username = login.username.data
+            login_pass = login.password.data
+            query_username = User.query.filter_by(username=login_username).first()
+            query_email = User.query.filter_by(email=login_username).first()
+            if query_username or query_email:
+                if query_username:
+                    hash_pass = query_username.password
+                    if not bcrypt.check_password_hash(hash_pass, login_pass):
+                        flash('You have input the incorrect login information or password')
+                    else:
+                        flash('You have successfully logged in')
+                        return redirect(url_for('home'))
+                if query_email:
+                    hash_pass = query_email.password
+                    if not bcrypt.check_password_hash(hash_pass, login_pass):
+                        flash('You have input the incorrect login information or password')
+                    else:
+                        flash('You have successfully logged in')
+                        return redirect(url_for('home'))
+            else:
+                flash('You have input the incorrect login information or password')
+    return render_template('signin.html', title='Log In', form=login)
 if __name__ == '__main__':               # this should always be at the end
     app.run(debug=True, host="0.0.0.0")

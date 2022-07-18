@@ -11,6 +11,7 @@ bcrypt = Bcrypt(app)             # code to create bcrypt wrapper for flask app
 app.config['SECRET_KEY'] = '39e544a7b87e65b3d845915b1533104f'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 db = SQLAlchemy(app)
+name = None
 
 class User(db.Model):
   id = db.Column(db.Integer, primary_key=True)
@@ -51,22 +52,37 @@ def login():
             query_username = User.query.filter_by(username=login_username).first()
             query_email = User.query.filter_by(email=login_username).first()
             if query_username or query_email:
+                global name
                 if query_username:
                     hash_pass = query_username.password
                     if not bcrypt.check_password_hash(hash_pass, login_pass):
                         flash('You have input the incorrect login information or password')
                     else:
                         flash('You have successfully logged in')
-                        return redirect(url_for('home'))
+                        name = login_username
+                        
+                        return redirect(url_for('user'))
                 if query_email:
                     hash_pass = query_email.password
                     if not bcrypt.check_password_hash(hash_pass, login_pass):
                         flash('You have input the incorrect login information or password')
                     else:
                         flash('You have successfully logged in')
-                        return redirect(url_for('home'))
+                        name = query_email.username
+                        return redirect(url_for('user'))
             else:
                 flash('You have input the incorrect login information or password')
     return render_template('signin.html', title='Log In', form=login)
+@app.route("/user")
+def user():
+    subtitle = ''
+    text = ''
+    if name is None:
+        subtitle = 'Hello User'
+        text = 'You have not logged in to the user page'
+    else:
+        subtitle = f'Hello {name}'
+        text = 'You are logged in to the user page'
+    return render_template('user_page.html', subtitle=subtitle, text=text )
 if __name__ == '__main__':               # this should always be at the end
     app.run(debug=True, host="0.0.0.0")
